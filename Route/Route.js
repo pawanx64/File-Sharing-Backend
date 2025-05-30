@@ -60,21 +60,26 @@ router.post('/upload', upload.single('file'), async(req, res) => {
     
 });
 
-router.get('/:id',async(req,res)=>{
-  try{
+router.get('/download/:id', async (req, res) => {
+  try {
     const fileId = req.params.id;
     const file = await FileModel.findById(fileId);
-    
+
     if (!file) {
-        return res.status(404).json({ error: 'File not found' });
+      return res.status(404).json({ error: 'File not found' });
     }
-    const fileUrl = `${process.env.DATABASE_URL}/${file._id}`;
-    res.json({ file, fileUrl });
-}
-catch(error){
-    console.error('Error fetching file:', error);
+
+    res.json({
+      filename: file.filename,
+      sizeInBytes: file.sizeInBytes,
+      secure_url: file.secure_url,
+      shareableLink: `https://skyboxshare.vercel.app/download/${file._id}`
+    });
+  } catch (error) {
+    console.error('Error fetching download info:', error);
     res.status(500).json({ error: 'Internal Server Error' });
-}
+  }
 });
+
 
 module.exports=router;
