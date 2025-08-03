@@ -21,5 +21,14 @@ const FileModelSchema=new mongoose.Schema({
         type:String,
         required:false,
     },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true,
+    },
+    uploadTime: {
+        type: Date,
+        default: Date.now,
+    },
 });
 module.exports=mongoose.model('FileModel',FileModelSchema);
