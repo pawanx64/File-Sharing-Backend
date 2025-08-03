@@ -8,7 +8,7 @@ require("dotenv").config();
 
 app.use(
     cors({
-        origin:["https://skyboxshare.vercel.app"],
+        origin:["https://skyboxshare.vercel.app","http://localhost:3000"],
         methods:["POST","GET", "DELETE"], // Added DELETE method for file deletion
         credentials: true,
     })
