@@ -157,31 +157,31 @@ router.get('/myfiles', authMiddleware, async (req, res) => {
 });
 
 // DELETE route to handle file deletion
-router.delete('/file/:id', authMiddleware, async (req, res) => {
-    try {
-        const fileId = req.params.id;
-        const file = await FileModel.findOneAndDelete({ _id: fileId, user: req.userId });
+// router.delete('/file/:id', authMiddleware, async (req, res) => {
+//     try {
+//         const fileId = req.params.id;
+//         const file = await FileModel.findOneAndDelete({ _id: fileId, user: req.userId });
 
-        if (!file) {
-            return res.status(404).json({ message: "File not found or not authorized to delete" });
-        }
+//         if (!file) {
+//             return res.status(404).json({ message: "File not found or not authorized to delete" });
+//         }
         
-        // Extract the public ID from the secure URL to delete the file from Cloudinary
-        const publicIdStartIndex = file.secure_url.lastIndexOf('File%20Sharing/');
-        if (publicIdStartIndex !== -1) {
-            const publicIdWithExtension = file.secure_url.substring(publicIdStartIndex);
-            const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
+//         // Extract the public ID from the secure URL to delete the file from Cloudinary
+//         const publicIdStartIndex = file.secure_url.lastIndexOf('File%20Sharing/');
+//         if (publicIdStartIndex !== -1) {
+//             const publicIdWithExtension = file.secure_url.substring(publicIdStartIndex);
+//             const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
             
-            await cloudinary.uploader.destroy(publicId);
-            console.log(`Cloudinary file with public_id ${publicId} successfully deleted.`);
-        }
+//             await cloudinary.uploader.destroy(publicId);
+//             console.log(`Cloudinary file with public_id ${publicId} successfully deleted.`);
+//         }
 
-        res.status(200).json({ message: "File and record deleted successfully" });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ message: "Server error" });
-    }
-});
+//         res.status(200).json({ message: "File and record deleted successfully" });
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).json({ message: "Server error" });
+//     }
+// });
 
 router.post('/changepassword', authMiddleware, async (req, res) => {
   try {
@@ -315,6 +315,7 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+// DELETE route to handle file deletion
 router.delete('/file/:id', authMiddleware, async (req, res) => {
     try {
         const fileId = req.params.id;
@@ -324,21 +325,23 @@ router.delete('/file/:id', authMiddleware, async (req, res) => {
             return res.status(404).json({ message: "File not found or not authorized to delete" });
         }
         
-        // Extract the public ID from the secure URL to delete the file from Cloudinary
-        const publicIdStartIndex = file.secure_url.lastIndexOf('File%20Sharing/');
-        if (publicIdStartIndex !== -1) {
-            const publicIdWithExtension = file.secure_url.substring(publicIdStartIndex);
-            const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
-            
-            await cloudinary.uploader.destroy(publicId);
-            console.log(`Cloudinary file with public_id ${publicId} successfully deleted.`);
-        }
-
+        // --- Corrected logic to extract Cloudinary public ID ---
+        // A more robust way is to find the last '/' and '.' to isolate the ID.
+        const urlParts = file.secure_url.split('/');
+        const fileWithExtension = urlParts.pop(); // Gets 'imagename.jpg'
+        const publicId = `File Sharing/${fileWithExtension.substring(0, fileWithExtension.lastIndexOf('.'))}`;
+        
+        // Use cloudinary.uploader.destroy with the correct public ID
+        await cloudinary.uploader.destroy(publicId);
+        
+        console.log(`Cloudinary file with public_id ${publicId} successfully deleted.`);
+        
+        // Since the `FileModel.findOneAndDelete` already removed the database record,
+        // we can now just send a success response.
         res.status(200).json({ message: "File and record deleted successfully" });
     } catch (err) {
-        console.error(err);
+        console.error("Error deleting file:", err);
         res.status(500).json({ message: "Server error" });
     }
 });
-
 module.exports = router;
