@@ -326,39 +326,40 @@ router.post('/reset-password', async (req, res) => {
 });
 
 router.delete('/file/:id', authMiddleware, async (req, res) => {
-    try {
-        const fileId = req.params.id;
+  try {
+    const fileId = req.params.id;
 
-        // ✅ Fetch the file using the ID
-        const file = await FileModel.findOne({ _id: fileId, user: req.userId });
+    const file = await FileModel.findOne({ _id: fileId, user: req.userId });
 
-        if (!file) {
-            return res.status(404).json({ message: "File not found or not authorized to delete" });
-        }
-
-        // ✅ Use public_id directly
-        const publicId = file.public_id;
-
-        if (!publicId) {
-            return res.status(400).json({ message: "Missing public_id in DB" });
-        }
-
-        const deletionResult = await cloudinary.uploader.destroy(publicId, {
-            resource_type: "raw"
-        });
-
-        if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
-            return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
-        }
-
-        await FileModel.deleteOne({ _id: fileId });
-
-        res.status(200).json({ message: "File and record deleted successfully" });
-    } catch (err) {
-        console.error("Error deleting file:", err);
-        res.status(500).json({ message: "Server error during deletion" });
+    if (!file) {
+      return res.status(404).json({ message: "File not found or not authorized to delete" });
     }
+
+    // ✅ Fix public_id formatting
+    const publicId = file.public_id.replace(/ /g, '%20');
+    console.log("Attempting Cloudinary deletion with public_id:", publicId);
+
+    // ✅ Delete from Cloudinary
+    const deletionResult = await cloudinary.uploader.destroy(publicId, {
+      resource_type: "raw"
+    });
+
+    console.log("Cloudinary deletion result:", deletionResult);
+
+    if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
+      return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
+    }
+
+    // ✅ Delete from MongoDB
+    await FileModel.deleteOne({ _id: fileId });
+
+    res.status(200).json({ message: "File and record deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting file:", err.message);
+    res.status(500).json({ message: "Server error during deletion" });
+  }
 });
+
 
 
 
