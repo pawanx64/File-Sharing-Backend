@@ -327,40 +327,40 @@ router.post('/reset-password', async (req, res) => {
 });
 
 router.delete('/file/:id', authMiddleware, async (req, res) => {
-  try {
-    const fileId = req.params.id;
+    try {
+        const fileId = req.params.id;
+        const file = await FileModel.findOne({ _id: fileId, user: req.userId });
 
-    const file = await FileModel.findOne({ _id: fileId, user: req.userId });
+        if (!file) {
+            return res.status(404).json({ message: "File not found or not authorized to delete" });
+        }
 
-    if (!file) {
-      return res.status(404).json({ message: "File not found or not authorized to delete" });
+        // ✅ Use the stored public_id and resource_type
+        const publicId = file.public_id;
+        const resourceType = file.resource_type;
+
+        console.log(`Attempting Cloudinary deletion for public_id: ${publicId}, with resource_type: ${resourceType}`);
+
+        // ✅ Delete from Cloudinary using the stored resource_type
+        const deletionResult = await cloudinary.uploader.destroy(publicId, {
+            resource_type: resourceType, // 👈 Use the stored resource_type
+        });
+
+        console.log("Cloudinary deletion result:", deletionResult);
+
+        if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
+            return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
+        }
+
+        // ✅ Delete the record from MongoDB
+        await FileModel.deleteOne({ _id: fileId });
+
+        res.status(200).json({ message: "File and record deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting file:", err.message);
+        res.status(500).json({ message: "Server error during deletion" });
     }
-
-    // ✅ Fix public_id formatting
-    const publicId = file.public_id;
-    console.log("Attempting Cloudinary deletion with public_id:", publicId);
-
-    // ✅ Delete from Cloudinary
-    const deletionResult = await cloudinary.uploader.destroy(publicId, {
-      resource_type: "raw",
-    });
-
-    console.log("Cloudinary deletion result:", deletionResult);
-
-    if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
-      return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
-    }
-
-    // ✅ Delete from MongoDB
-    await FileModel.deleteOne({ _id: fileId });
-
-    res.status(200).json({ message: "File and record deleted successfully" });
-  } catch (err) {
-    console.error("Error deleting file:", err.message);
-    res.status(500).json({ message: "Server error during deletion" });
-  }
 });
-
 
 
 
