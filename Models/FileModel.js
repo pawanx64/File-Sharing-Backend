@@ -13,7 +13,9 @@ const FileModelSchema=new mongoose.Schema({
         type: String,
         required: true
     },
-
+    resource_type: {
+        type: String,
+    },
     sizeInBytes:{
         type:Number,
         required:true,
