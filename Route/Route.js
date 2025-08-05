@@ -320,38 +320,43 @@ router.delete('/file/:id', authMiddleware, async (req, res) => {
     try {
         const fileId = req.params.id;
 
-        // Find and remove the file entry from MongoDB
-        const file = await FileModel.findOneAndDelete({ _id: fileId, user: req.userId });
+        // 1. Find the file entry in MongoDB
+        const file = await FileModel.findOne({ _id: fileId, user: req.userId });
 
         if (!file) {
             return res.status(404).json({ message: "File not found or not authorized to delete" });
         }
 
-        // Extract Cloudinary public ID from secure_url
-        // Example secure_url: https://res.cloudinary.com/your_cloud/image/upload/v1691427000/File%20Sharing/abc123.jpg
+        // 2. Extract Cloudinary public ID from secure_url
+        // The public ID is the path segment starting after the folder and up to the file extension.
+        // Example secure_url: https://res.cloudinary.com/your_cloud/image/upload/v1234567890/File%20Sharing/my-image.jpg
+        // The public ID is 'File Sharing/my-image'.
 
-        const fileUrl = new URL(file.secure_url);
-        const pathSegments = fileUrl.pathname.split('/');
-        const folderIndex = pathSegments.indexOf('File%20Sharing');
+        // Extract the filename from the URL path.
+        const urlParts = file.secure_url.split('/');
+        const fileNameWithExt = urlParts.pop(); // 'my-image.jpg'
+        const version = urlParts.pop(); // 'v1234567890'
+        const folder = urlParts.pop(); // 'File%20Sharing'
 
-        if (folderIndex === -1 || folderIndex + 1 >= pathSegments.length) {
-            return res.status(400).json({ message: "Unable to extract public ID from Cloudinary URL" });
-        }
+        // Construct the public ID by decoding and joining folder and filename without extension
+        // This is a more direct way to ensure the public ID is correct.
+        const publicId = `${decodeURIComponent(folder)}/${decodeURIComponent(fileNameWithExt.split('.')[0])}`;
 
-        // Join the folder and file name and decode URL
-        const publicIdWithExt = decodeURIComponent(
-            pathSegments.slice(folderIndex).join('/')
-        ); // → "File Sharing/abc123.jpg"
-        
-        // Remove file extension from public ID
-        const publicId = publicIdWithExt.replace(/\.[^/.]+$/, ''); // → "File Sharing/abc123"
-
-        // Delete from Cloudinary
-        await cloudinary.uploader.destroy(publicId, {
+        // 3. Delete from Cloudinary
+        const result = await cloudinary.uploader.destroy(publicId, {
             resource_type: "auto"
         });
 
+        // 4. Handle Cloudinary deletion result
+        if (result.result !== 'ok') {
+            console.error('Cloudinary deletion failed:', result);
+            return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
+        }
+
         console.log(`Cloudinary file with public_id '${publicId}' deleted.`);
+
+        // 5. Delete the file record from MongoDB
+        await FileModel.deleteOne({ _id: fileId });
 
         res.status(200).json({ message: "File and record deleted successfully" });
     } catch (err) {
