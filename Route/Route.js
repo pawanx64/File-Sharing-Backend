@@ -317,6 +317,7 @@ router.post('/reset-password', async (req, res) => {
 
 // DELETE route to handle file deletion
 // DELETE route to handle file deletion
+// DELETE route to handle file deletion
 router.delete('/file/:id', authMiddleware, async (req, res) => {
     try {
         const fileId = req.params.id;
@@ -331,15 +332,10 @@ router.delete('/file/:id', authMiddleware, async (req, res) => {
         // 2. Extract Cloudinary public ID from the secure_url
         // Example URL: https://res.cloudinary.com/your_cloud/image/upload/v1234567890/File%20Sharing/my-image.jpg
         // The public ID is the folder and filename (without extension).
-
-        // Use a more direct method to get the path segment.
         const urlParts = file.secure_url.split('/');
-        // The last part is the filename with extension
         const fileNameWithExt = urlParts[urlParts.length - 1]; 
-        // The second to last part is the folder name
         const folder = urlParts[urlParts.length - 2]; 
 
-        // Decode the URI and remove the file extension.
         const decodedFolder = decodeURIComponent(folder);
         const decodedFileName = decodeURIComponent(fileNameWithExt.split('.')[0]);
         const publicId = `${decodedFolder}/${decodedFileName}`;
@@ -349,10 +345,8 @@ router.delete('/file/:id', authMiddleware, async (req, res) => {
             resource_type: "auto"
         });
 
-        // Check the result from Cloudinary.
         if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
             console.error('Cloudinary deletion failed:', deletionResult);
-            // This is an internal server error since Cloudinary failed.
             return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
         }
 
@@ -364,7 +358,6 @@ router.delete('/file/:id', authMiddleware, async (req, res) => {
         res.status(200).json({ message: "File and record deleted successfully" });
     } catch (err) {
         console.error("Error deleting file:", err);
-        // This catch block handles unexpected server errors.
         res.status(500).json({ message: "Server error" });
     }
 });

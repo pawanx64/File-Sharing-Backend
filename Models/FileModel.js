@@ -10,7 +10,7 @@ const FileModelSchema=new mongoose.Schema({
         required:true,
     },
     sizeInBytes:{
-        type:String,
+        type:Number,
         required:true,
     },
     sender:{
