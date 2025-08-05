@@ -318,48 +318,58 @@ router.post('/reset-password', async (req, res) => {
 // DELETE route to handle file deletion
 // DELETE route to handle file deletion
 // DELETE route to handle file deletion
+// DELETE route to handle file deletion
 router.delete('/file/:id', authMiddleware, async (req, res) => {
-    try {
-        const fileId = req.params.id;
+    try {
+        const fileId = req.params.id;
 
-        // 1. Find the file entry in MongoDB without deleting it yet.
-        const file = await FileModel.findOne({ _id: fileId, user: req.userId });
+        // 1. Find the file entry in MongoDB without deleting it yet.
+        const file = await FileModel.findOne({ _id: fileId, user: req.userId });
 
-        if (!file) {
-            return res.status(404).json({ message: "File not found or not authorized to delete" });
-        }
+        if (!file) {
+            return res.status(404).json({ message: "File not found or not authorized to delete" });
+        }
 
-        // 2. Extract Cloudinary public ID from the secure_url
-        // Example URL: https://res.cloudinary.com/your_cloud/image/upload/v1234567890/File%20Sharing/my-image.jpg
-        // The public ID is the folder and filename (without extension).
-        const urlParts = file.secure_url.split('/');
-        const fileNameWithExt = urlParts[urlParts.length - 1]; 
-        const folder = urlParts[urlParts.length - 2]; 
+        // 2. Extract Cloudinary public ID from the secure_url
+        // We need to be careful with URL parsing to get the correct public ID.
+        // Example URL format: https://.../upload/v1234567890/File%20Sharing/my-image.jpg
+        const urlParts = file.secure_url.split('/upload/');
+        const pathWithVersion = urlParts[1];
+        
+        // Split the path to remove the version number and file extension
+        const pathParts = pathWithVersion.split('/');
+        // The version number is the first part, so we slice from index 1
+        const publicIdWithExt = pathParts.slice(1).join('/');
+        
+        // Remove the file extension and decode the URI components
+        const publicId = decodeURIComponent(publicIdWithExt.split('.')[0]);
 
-        const decodedFolder = decodeURIComponent(folder);
-        const decodedFileName = decodeURIComponent(fileNameWithExt.split('.')[0]);
-        const publicId = `${decodedFolder}/${decodedFileName}`;
+        console.log(`Attempting to delete Cloudinary file with public_id: '${publicId}'`);
 
-        // 3. Delete the file from Cloudinary first.
-        const deletionResult = await cloudinary.uploader.destroy(publicId, {
-            resource_type: "auto"
-        });
+        // 3. Delete the file from Cloudinary first.
+        const deletionResult = await cloudinary.uploader.destroy(publicId, {
+            resource_type: "auto"
+        });
+        
+        // Check the result from Cloudinary.
+        // 'not found' is also a successful outcome for our purposes, as the file is gone.
+        if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
+            console.error('Cloudinary deletion failed:', deletionResult);
+            // If Cloudinary failed, we should not delete the record from MongoDB.
+            return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
+        }
 
-        if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
-            console.error('Cloudinary deletion failed:', deletionResult);
-            return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
-        }
+        console.log(`Cloudinary file with public_id '${publicId}' deleted. Result: ${deletionResult.result}`);
 
-        console.log(`Cloudinary file with public_id '${publicId}' deleted.`);
+        // 4. If Cloudinary deletion was successful (or the file was already gone), remove the record from MongoDB.
+        await FileModel.deleteOne({ _id: fileId });
 
-        // 4. If Cloudinary deletion was successful, remove the record from MongoDB.
-        await FileModel.deleteOne({ _id: fileId });
-
-        res.status(200).json({ message: "File and record deleted successfully" });
-    } catch (err) {
-        console.error("Error deleting file:", err);
-        res.status(500).json({ message: "Server error" });
-    }
+        res.status(200).json({ message: "File and record deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting file:", err);
+        // This catch block handles any other unexpected server errors.
+        res.status(500).json({ message: "Server error" });
+    }
 });
 
 module.exports = router;
