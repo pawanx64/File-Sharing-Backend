@@ -336,7 +336,7 @@ router.delete('/file/:id', authMiddleware, async (req, res) => {
     }
 
     // ✅ Fix public_id formatting
-    const publicId = file.public_id.replace(/ /g, '%20');
+    const publicId = file.public_id;
     console.log("Attempting Cloudinary deletion with public_id:", publicId);
 
     // ✅ Delete from Cloudinary
