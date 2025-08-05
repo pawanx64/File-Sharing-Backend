@@ -28,53 +28,61 @@ let upload = multer({ storage });
 // Route to handle file uploads
 router.post('/upload', authMiddleware, upload.single('file'), async (req, res) => {
     try {
+        // Validate file presence
         if (!req.file) {
-            return res.status(400).json({
-                message: "We Need The File",
-            });
+            return res.status(400).json({ message: "File is required." });
         }
+
+        // Validate file size (limit: 5MB)
         if (req.file.size > 5 * 1024 * 1024) {
             return res.status(413).json({ message: "File size exceeds 5MB limit." });
         }
-        console.log(req.file);
+
+        console.log("File received:", req.file);
+
+        // Upload file to Cloudinary
         let uploadedFile;
         try {
             uploadedFile = await cloudinary.uploader.upload(req.file.path, {
                 folder: "File Sharing",
                 resource_type: "auto"
             });
-        } catch (error) {
-            console.log(error.message);
+        } catch (cloudError) {
+            console.error("Cloudinary upload error:", cloudError.message);
             return res.status(400).json({
-                message: "Cloudinary Error " + error.message,
+                message: "Cloudinary Error: " + cloudError.message
             });
         }
+
+        // Destructure needed info
         const { originalname } = req.file;
         const { secure_url, bytes, public_id } = uploadedFile;
+
+        // Save metadata to MongoDB
         try {
             const file = await FileModel.create({
                 filename: originalname,
                 secure_url,
-                public_id,
+                public_id, // ✅ Store this for deletion
                 sizeInBytes: bytes,
                 user: req.userId,
                 uploadTime: new Date()
             });
-            res.status(200).json({
+
+            return res.status(200).json({
                 id: file._id,
-                message: "File uploaded successfully",
+                message: "File uploaded successfully"
             });
-        } catch (error) {
-            console.log(error.message);
+        } catch (dbError) {
+            console.error("Database error:", dbError.message);
             return res.status(500).json({
-                message: "Error saving file record",
+                message: "Error saving file record"
             });
         }
-    } catch (error) {
-        console.log(error.message);
-        res.status(500).json({
-            message: "Server Error",
-        });
+
+    } catch (serverError) {
+        console.error("Server error:", serverError.message);
+        return res.status(500).json({ message: "Server Error" });
     }
 });
 
@@ -317,35 +325,41 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// DELETE route to handle file deletion
-// DELETE route to handle file deletion
-// DELETE route to handle file deletion
-// DELETE route to handle file deletion
 router.delete('/file/:id', authMiddleware, async (req, res) => {
-  try {
-    const file = await FileModel.findOne({ _id: req.params.id, user: req.userId });
+    try {
+        const fileId = req.params.id;
 
-    if (!file) {
-      return res.status(404).json({ message: "File not found or unauthorized" });
+        // ✅ Fetch the file using the ID
+        const file = await FileModel.findOne({ _id: fileId, user: req.userId });
+
+        if (!file) {
+            return res.status(404).json({ message: "File not found or not authorized to delete" });
+        }
+
+        // ✅ Use public_id directly
+        const publicId = file.public_id;
+
+        if (!publicId) {
+            return res.status(400).json({ message: "Missing public_id in DB" });
+        }
+
+        const deletionResult = await cloudinary.uploader.destroy(publicId, {
+            resource_type: "auto"
+        });
+
+        if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
+            return res.status(500).json({ message: "Failed to delete file from Cloudinary." });
+        }
+
+        await FileModel.deleteOne({ _id: fileId });
+
+        res.status(200).json({ message: "File and record deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting file:", err);
+        res.status(500).json({ message: "Server error during deletion" });
     }
-
-    // Use the stored public_id directly
-    const cloudinaryResult = await cloudinary.uploader.destroy(file.public_id, {
-      resource_type: 'auto'
-    });
-
-    if (cloudinaryResult.result !== 'ok' && cloudinaryResult.result !== 'not found') {
-      return res.status(500).json({ message: "Failed to delete from Cloudinary", cloudinaryResult });
-    }
-
-    await FileModel.deleteOne({ _id: req.params.id });
-
-    res.status(200).json({ message: "File successfully deleted from DB and Cloudinary" });
-
-  } catch (error) {
-    console.error("Error deleting file:", error.message || error);
-    res.status(500).json({ message: "Server error during deletion" });
-  }
 });
+
+
 
 module.exports = router;

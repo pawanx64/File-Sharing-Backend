@@ -9,7 +9,11 @@ const FileModelSchema=new mongoose.Schema({
         type:String,
         required:true,
     },
-    public_id: String,
+    public_id: {
+        type: String,
+        required: true
+    },
+
     sizeInBytes:{
         type:Number,
         required:true,
