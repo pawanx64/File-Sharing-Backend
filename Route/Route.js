@@ -344,7 +344,7 @@ router.delete('/file/:id', authMiddleware, async (req, res) => {
         }
 
         const deletionResult = await cloudinary.uploader.destroy(publicId, {
-            resource_type: "auto"
+            resource_type: "raw"
         });
 
         if (deletionResult.result !== 'ok' && deletionResult.result !== 'not found') {
