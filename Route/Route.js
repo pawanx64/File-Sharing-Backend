@@ -315,4 +315,30 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
+router.delete('/file/:id', authMiddleware, async (req, res) => {
+    try {
+        const fileId = req.params.id;
+        const file = await FileModel.findOneAndDelete({ _id: fileId, user: req.userId });
+
+        if (!file) {
+            return res.status(404).json({ message: "File not found or not authorized to delete" });
+        }
+        
+        // Extract the public ID from the secure URL to delete the file from Cloudinary
+        const publicIdStartIndex = file.secure_url.lastIndexOf('File%20Sharing/');
+        if (publicIdStartIndex !== -1) {
+            const publicIdWithExtension = file.secure_url.substring(publicIdStartIndex);
+            const publicId = publicIdWithExtension.substring(0, publicIdWithExtension.lastIndexOf('.'));
+            
+            await cloudinary.uploader.destroy(publicId);
+            console.log(`Cloudinary file with public_id ${publicId} successfully deleted.`);
+        }
+
+        res.status(200).json({ message: "File and record deleted successfully" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 module.exports = router;
